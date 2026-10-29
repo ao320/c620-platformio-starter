@@ -1,41 +1,61 @@
-# C620 PlatformIO control
+# C620制御ソフトウェア
 
-ESP32 firmware and macOS controller tools for a DJI C620/M3508 platform. The repository contains two separate firmware images; flash only the image for the hardware setup in use.
+ESP32、SN65HVD230、DJI C620、M3508を使った足回りと肘の制御プログラムです。2種類のファームウェアを収録しています。用途に合わせてどちらか一方をESP32へ書き込んでください。
 
-## Firmware projects
+## 含まれるプログラム
 
-| Project | Purpose | Build |
+| 場所 | 用途 | ビルドコマンド |
 |---|---|---|
-| Repository root (`src/main.cpp`) | Chassis control for motor IDs 1–3; ID4 command bytes remain zero | `pio run` |
-| `arm_control/` | Elbow control for motor ID4; commands for IDs 1–3 remain zero | `pio run -d arm_control` |
+| ルートの `src/main.cpp` | 足回りの制御。モーターID 1〜3を使用し、ID4には駆動指令を送りません。 | `pio run` |
+| `arm_control/` | 肘の制御。モーターID 4を使用し、ID1〜3には駆動指令を送りません。 | `pio run -d arm_control` |
 
-The two images use shared headers in `src/`. They are alternative programs for the ESP32, not processes to run at the same time.
+どちらのファームウェアも共通ヘッダーを `src/` から読み込みます。同じESP32で同時に動かすものではありません。
 
-To upload, first confirm the connected board and serial port, then use the matching build directory:
+## ビルドと書き込み
+
+PlatformIO Coreを使ってビルドします。書き込む前に、接続しているESP32とシリアルポートが正しいことを確認してください。
 
 ```sh
+# 足回り用
+pio run
 pio run -t upload
+
+# 肘用
+pio run -d arm_control
 pio run -d arm_control -t upload
 ```
 
-PlatformIO build and upload verify the firmware operation only. They do not verify CAN wiring, motor response, braking distance, or mechanical safety.
+ビルドや書き込みが成功しても、CAN配線やモーターの動作、停止距離、機構の安全性が確認されたことにはなりません。
 
-## Local Wi-Fi configuration
+## 足回り用Wi-Fiの設定
 
-The chassis firmware starts a local access point. Copy `src/secrets.h.example` to `src/secrets.h` and set a private SSID and password before building. `src/secrets.h` is ignored by Git and must not be committed.
+足回り用ファームウェアはESP32のアクセスポイントを使います。初回ビルドの前に、`src/secrets.h.example` を `src/secrets.h` にコピーし、使用するSSIDとパスワードを設定してください。`src/secrets.h` はGitの対象外です。実際の認証情報を公開リポジトリに追加しないでください。
 
-## macOS controller
+## 操作画面
 
-The controller tools read a USB HID gamepad and provide the local web interfaces. Start the chassis controller with:
+### 足回り
+
+macOSでゲームコントローラーを接続し、次のコマンドで操作用サーバーを起動します。
 
 ```sh
 python3 tools/controller_input.py --drive
 ```
 
-The elbow interface is served by `tools/arm_controller.py` and `tools/arm_controller.html`; it uses the serial port connected to the ESP32. See the status and setup checks in the page before enabling control.
+ブラウザーで `http://127.0.0.1:8766/drive` を開きます。
 
-## Safety and diagnostics
+### 肘
 
-- The chassis image and elbow image have different motor-ID assignments. Verify which image is loaded before enabling motor output.
-- Position and speed limits are software protections, not mechanical stops. A support, travel stop, and accessible power cutoff are still needed during hardware work.
-- Logs, generated PlatformIO files, Python caches, and ROS 2 build artifacts are excluded from this source repository. Add a short, reviewed diagnostic excerpt only when it helps explain a specific issue.
+ESP32につながっているシリアルポートを指定してサーバーを起動します。ポート名は環境に合わせて変更してください。
+
+```sh
+python3 tools/arm_controller.py /dev/cu.usbserial-XXXXXXXX
+```
+
+ブラウザーで `http://127.0.0.1:8766/arm` を開き、状態表示と開始条件を確認してから操作します。
+
+## 安全上の注意
+
+- 書き込み前に、足回り用と肘用のどちらのファームウェアを選んでいるか確認してください。
+- ソフトウェアの位置・速度制限は機械的なストッパーの代わりにはなりません。機構を支持し、移動範囲を制限し、すぐに電源を切れる状態で作業してください。
+- 電流指令が0になると、肘を保持できず重力で動くことがあります。
+- このリポジトリには診断ログやビルド生成物を含めていません。ログを共有する場合は、必要な範囲だけを選び、内容を確認してから追加してください。
